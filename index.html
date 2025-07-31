@@ -1,0 +1,160 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Heart, MessageCircle, Send, Music, Plus, Search, Home, User, Loader, ArrowLeft, ChevronUp, ChevronDown, Film, LogIn, Mail, KeyRound, MessageSquare, Edit } from 'lucide-react';
+
+// --- Importações do Firebase ---
+import { initializeApp } from "firebase/app";
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    GoogleAuthProvider,
+    signInWithPopup,
+    signInAnonymously,
+    linkWithCredential,
+    EmailAuthProvider
+} from "firebase/auth";
+import { 
+    getFirestore, 
+    collection, 
+    doc, 
+    getDoc,
+    getDocs, 
+    onSnapshot, 
+    writeBatch,
+    updateDoc,
+    increment,
+    arrayUnion,
+    arrayRemove,
+    query,
+    where,
+    limit,
+    setDoc
+} from "firebase/firestore";
+
+// --- Configuração e Inicialização do Firebase ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'vibbeo-default';
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
+// --- DADOS INICIAIS (Omitido para brevidade) ---
+const seedDatabase = async () => { /* ...código omitido... */ };
+
+// --- COMPONENTES DE PÁGINA E LAYOUT ---
+
+const LoadingLayout = ({ text = "Carregando..." }) => (
+    <div className="h-screen w-screen bg-zinc-900 flex flex-col justify-center items-center p-4 text-white">
+        <Loader className="animate-spin text-[#FF0050]" size={48}/>
+        <p className="mt-4 text-lg text-gray-300">{text}</p>
+    </div>
+);
+
+const GoogleIcon = () => (
+    <svg className="w-6 h-6 mr-3" viewBox="0 0 48 48">
+        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"></path>
+        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"></path>
+        <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"></path>
+        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571l6.19 5.238C44.434 36.336 48 30.561 48 24c0-1.341-.138-2.65-.389-3.917z"></path>
+    </svg>
+);
+
+const AuthForm = ({ onGoogleLogin, onEmailSignUp }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleEmailSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            await onEmailSignUp(email, password);
+        } catch (err) {
+            setError(err.message.includes('auth/email-already-in-use') ? 'Este e-mail já está em uso.' : 'Ocorreu um erro.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="w-full max-w-sm mx-auto bg-gray-900 p-6 rounded-lg mt-4">
+            <h3 className="text-2xl font-bold text-center mb-4">Crie sua Conta</h3>
+            <p className="text-center text-gray-400 mb-6">Salve seu progresso e desbloqueie todos os recursos.</p>
+            <button onClick={onGoogleLogin} className="w-full mb-4 p-3 bg-white text-gray-800 rounded-md font-semibold text-lg flex items-center justify-center hover:bg-gray-200 transition-colors">
+                <GoogleIcon /> Continuar com Google
+            </button>
+            <div className="flex items-center my-4"><div className="flex-grow border-t border-gray-700"></div><span className="flex-shrink mx-4 text-gray-500">OU</span><div className="flex-grow border-t border-gray-700"></div></div>
+            <form onSubmit={handleEmailSubmit} className="space-y-4">
+                {error && <p className="text-red-500 text-center">{error}</p>}
+                <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 bg-gray-800 rounded-md border border-gray-700" required />
+                <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 bg-gray-800 rounded-md border border-gray-700" required />
+                <button type="submit" disabled={loading} className="w-full p-3 bg-gradient-to-r from-[#69C9D0] to-[#FF0050] rounded-md font-bold text-lg disabled:opacity-50">{loading ? <Loader className="mx-auto animate-spin" /> : 'Criar Conta com E-mail'}</button>
+            </form>
+        </div>
+    );
+};
+
+
+// --- OUTROS COMPONENTES (SignUpPage, ProfilePage, etc. omitidos para brevidade) ---
+const MainLayout = ({ children, currentPage, onNavigate, currentUserProfile, onLogout }) => ( <div className="h-screen w-screen bg-zinc-900 flex font-sans text-white"><Navigation currentPage={currentPage} onNavigate={onNavigate} currentUserProfile={currentUserProfile} onLogout={onLogout} /><main className="flex-1 h-full bg-black md:bg-zinc-900 overflow-y-auto">{children}</main><aside className="hidden lg:block w-80 bg-black border-l border-gray-800 p-4"><h2 className="text-xl font-bold">Atividade</h2><p className="text-gray-400 mt-4">Painel de comentários ou tendências aparecerá aqui.</p></aside></div>);
+const Navigation = ({ currentPage, onNavigate, currentUserProfile, onLogout }) => { const activeClass = "text-white font-bold"; const inactiveClass = "text-gray-400 hover:text-white"; const navItems = [ { id: 'dashboard', icon: Home, label: 'Para Você', action: () => onNavigate('dashboard') }, { id: 'perfil', icon: User, label: 'Perfil', action: () => onNavigate('perfil', currentUserProfile?.username) }, ]; return (<><div className="md:hidden fixed bottom-0 left-0 w-full bg-black flex justify-around items-center py-2 z-20 border-t border-gray-800">{navItems.map(item => (<button key={item.id} onClick={item.action} className={`flex flex-col items-center text-sm ${currentPage === item.id ? activeClass : inactiveClass}`}><item.icon size={24}/>{item.label}</button>))}</div><div className="hidden md:flex flex-col p-4 bg-black border-r border-gray-800 h-full"><h1 className="text-2xl font-bold tracking-wider text-white mb-8">Vibbeo</h1><div className="flex-grow">{navItems.map(item => (<button key={item.id} onClick={item.action} className={`flex items-center text-lg p-3 rounded-lg w-full text-left mb-2 ${currentPage === item.id ? 'bg-gray-800 ' + activeClass : inactiveClass}`}><item.icon size={28} className="mr-4"/>{item.label}</button>))}</div><button onClick={onLogout} className={`flex items-center text-lg p-3 rounded-lg w-full text-left ${inactiveClass}`}><LogIn size={28} className="mr-4 rotate-180"/>Sair</button></div></>);};
+const FeedPage = ({ videos, onLike, onSelectProfile, currentUserId, currentUserProfile }) => { const [currentIndex, setCurrentIndex] = useState(0); const feedRef = useRef(null); const scrollToVideo = (index) => { if (feedRef.current?.children[index]) { feedRef.current.children[index].scrollIntoView({ behavior: 'smooth' }); setCurrentIndex(index); }}; const onVisibilityChange = useCallback((entries) => entries.forEach(e => e.isIntersecting && setCurrentIndex(parseInt(e.target.dataset.index, 10))), []); useEffect(() => { const obs = new IntersectionObserver(onVisibilityChange, { threshold: 0.7 }); Array.from(feedRef.current?.children || []).forEach(el => obs.observe(el)); return () => obs.disconnect(); }, [videos, onVisibilityChange]); if (videos.length === 0) return <div className="h-full w-full flex items-center justify-center text-white">Carregando feed...</div>; return (<div className="relative h-full w-full flex items-center justify-center"><div ref={feedRef} className="h-full w-full md:w-[400px] lg:w-[450px] overflow-y-scroll snap-y snap-mandatory scrollbar-hide rounded-lg">{videos.map((video, index) => <div key={video.id} data-index={index} className="video-container h-full w-full"><VideoPlayer data={video} isVisible={currentIndex === index} onLike={onLike} onSelectProfile={onSelectProfile} currentUserId={currentUserId} isGuest={currentUserProfile?.isAnonymous}/></div>)}</div><div className="hidden md:flex flex-col space-y-4 absolute right-4 top-1/2 -translate-y-1/2"><button onClick={() => scrollToVideo(currentIndex - 1)} disabled={currentIndex === 0} className="bg-white/20 p-2 rounded-full disabled:opacity-50"><ChevronUp size={24}/></button><button onClick={() => scrollToVideo(currentIndex + 1)} disabled={currentIndex === videos.length - 1} className="bg-white/20 p-2 rounded-full disabled:opacity-50"><ChevronDown size={24}/></button></div></div>);};
+const VideoPlayer = ({ data, isVisible, onLike, onSelectProfile, currentUserId, isGuest }) => { const videoRef = useRef(null); const isLiked = data.likedBy?.includes(currentUserId); useEffect(() => { isVisible ? videoRef.current?.play().catch(e => {}) : videoRef.current?.pause(); if(videoRef.current && !isVisible) videoRef.current.currentTime = 0; }, [isVisible]); return (<div className="relative h-full w-full snap-start flex items-center justify-center bg-black rounded-lg overflow-hidden"><video ref={videoRef} onClick={() => videoRef.current?.paused ? videoRef.current?.play() : videoRef.current?.pause()} src={data.src} loop className="h-full w-full object-cover" playsInline /><div className="absolute top-0 left-0 w-full h-full flex flex-col justify-between p-4 text-white bg-gradient-to-t from-black/60 to-transparent"><div/><div className="flex items-end"><div className="flex-1 min-w-0"><button onClick={() => onSelectProfile(data.user.username)} className="flex items-center mb-2 text-left"><img src={data.user.avatar} className="w-10 h-10 rounded-full border-2" alt="Avatar"/><p className="ml-3 font-bold text-lg truncate">{data.user.username}</p></button><p className="mb-2">{data.caption} <span className="font-bold text-gray-300">{data.hashtags}</span></p><div className="flex items-center"><Music size={18} className="mr-2"/><p className="text-sm truncate">{data.music}</p></div></div><div className="flex flex-col items-center space-y-6 ml-4"><button onClick={() => onLike(data.id, isLiked)} className="flex flex-col items-center"><div className={`bg-black/40 p-3 rounded-full ${isLiked ? 'scale-110' : ''}`}><Heart size={32} fill={isLiked ? '#FF0050' : 'white'} stroke={isLiked ? '#FF0050' : 'white'}/></div><span className="text-sm mt-1">{data.likeCount || 0}</span></button><button className="flex flex-col items-center"><div className="bg-black/40 p-3 rounded-full"><MessageCircle size={32}/></div><span className="text-sm mt-1">{data.comments || 0}</span></button></div></div></div></div>);};
+const ProfilePage = ({ username, currentUserProfile, onNavigate, onFollow, onGoogleLogin, onEmailSignUp }) => { const [profileData, setProfileData] = useState(null); const [userVideos, setUserVideos] = useState([]); const [isLoading, setIsLoading] = useState(true); const isMyProfile = currentUserProfile?.username === username; const isFollowing = currentUserProfile?.following?.includes(profileData?.uid); const isGuest = currentUserProfile?.isAnonymous; useEffect(() => { if (!username) return; setIsLoading(true); const usersRef = collection(db, `artifacts/${appId}/public/data/users`); const q = query(usersRef, where("username", "==", username), limit(1)); const unsubscribe = onSnapshot(q, (snapshot) => { if (!snapshot.empty) { const userData = { uid: snapshot.docs[0].id, ...snapshot.docs[0].data() }; setProfileData(userData); const videosQ = query(collection(db, `artifacts/${appId}/public/data/videos`), where("user.username", "==", username)); onSnapshot(videosQ, (videoSnap) => { setUserVideos(videoSnap.docs.map(d => ({ id: d.id, ...d.data() }))); setIsLoading(false); }); } else { setIsLoading(false); setProfileData(null); } }); return () => unsubscribe(); }, [username]); const handleFollow = () => { if (isGuest) { alert("Crie uma conta para seguir usuários."); return; } if (!isMyProfile && profileData) { onFollow(profileData.uid, isFollowing); } }; if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader className="animate-spin text-[#FF0050]" size={48}/></div>; if (!profileData) return <div className="p-4 text-center">Usuário não encontrado.</div>; return (<div className="h-full w-full bg-black text-white p-4 overflow-y-auto pb-20 md:pb-4"><div className="flex flex-col items-center mb-6"><img src={profileData.photoURL || `https://placehold.co/100x100/777/000?text=${profileData.username.charAt(1)}`} className="w-24 h-24 rounded-full border-4 border-[#FF0050] mb-4 object-cover" alt="Avatar"/><h2 className="text-2xl font-bold">{profileData.displayName}</h2><p className="text-md text-gray-400">{profileData.username}</p><p className="text-center my-4 max-w-md">{profileData.bio}</p><div className="flex space-x-6"><div className="text-center"><span className="font-bold text-lg">{profileData.following?.length || 0}</span><p className="text-gray-400">Seguindo</p></div><div className="text-center"><span className="font-bold text-lg">{profileData.followers?.length || 0}</span><p className="text-gray-400">Seguidores</p></div></div><div className="mt-6">{isMyProfile && !isGuest && (<button onClick={() => onNavigate('editar-perfil')} className="px-6 py-2 bg-gray-700 rounded-lg flex items-center hover:bg-gray-600"><Edit size={16} className="mr-2"/> Editar Perfil</button>)} {!isMyProfile && (<button onClick={handleFollow} className={`px-10 py-2 rounded-lg font-bold ${isFollowing ? 'bg-gray-700' : 'bg-gradient-to-r from-[#69C9D0] to-[#FF0050]'}`}>{isFollowing ? 'Seguindo' : 'Seguir'}</button>)}</div></div>{isMyProfile && isGuest && <AuthForm onGoogleLogin={onGoogleLogin} onEmailSignUp={onEmailSignUp} />}<h3 className="text-lg font-semibold my-4 border-b border-gray-700 pb-2">Vídeos ({userVideos.length})</h3><div className="grid grid-cols-3 gap-1">{userVideos.map(v => <div key={v.id} className="relative aspect-square bg-gray-800"><video src={v.src} className="w-full h-full object-cover"/><div className="absolute bottom-1 left-1 flex items-center text-white text-xs bg-black/50 px-1 rounded"><Heart size={12} fill="white" className="mr-1"/>{v.likeCount || 0}</div></div>)}</div></div>);};
+const EditProfilePage = ({ currentUserProfile, onUpdateProfile, onNavigate }) => { const [displayName, setDisplayName] = useState(currentUserProfile?.displayName || ''); const [username, setUsername] = useState(currentUserProfile?.username || ''); const [bio, setBio] = useState(currentUserProfile?.bio || ''); const [photoURL, setPhotoURL] = useState(currentUserProfile?.photoURL || ''); const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const handleSubmit = async (e) => { e.preventDefault(); setLoading(true); setError(''); try { await onUpdateProfile({ displayName, username, bio, photoURL }); onNavigate('perfil', username); } catch (err) { setError(err.message); } finally { setLoading(false); } }; return (<div className="h-full w-full bg-black text-white p-4 overflow-y-auto"><header className="flex items-center mb-6"><button onClick={() => onNavigate('perfil', currentUserProfile.username)} className="mr-4"><ArrowLeft size={24}/></button><h1 className="text-2xl font-bold">Editar Perfil</h1></header><form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4">{error && <p className="text-red-500 bg-red-900/50 p-2 rounded-md text-center">{error}</p>}<div><label className="block mb-1 text-gray-400">URL da Foto de Perfil</label><input type="text" value={photoURL} onChange={e => setPhotoURL(e.target.value)} className="w-full p-2 bg-gray-800 rounded-md border border-gray-700" /></div><div><label className="block mb-1 text-gray-400">Nome de Exibição</label><input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className="w-full p-2 bg-gray-800 rounded-md border border-gray-700" required /></div><div><label className="block mb-1 text-gray-400">Nome de Usuário (@)</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full p-2 bg-gray-800 rounded-md border border-gray-700" required /></div><div><label className="block mb-1 text-gray-400">Bio</label><textarea value={bio} onChange={e => setBio(e.target.value)} rows="4" className="w-full p-2 bg-gray-800 rounded-md border border-gray-700"></textarea></div><button type="submit" disabled={loading} className="w-full p-3 bg-gradient-to-r from-[#69C9D0] to-[#FF0050] rounded-md font-bold text-lg disabled:opacity-50">{loading ? <Loader className="mx-auto animate-spin" /> : 'Salvar Alterações'}</button></form></div>);};
+
+
+// --- COMPONENTE PRINCIPAL: App (Roteador) ---
+export default function App() {
+  const [appState, setAppState] = useState('loading'); // loading, app
+  const [route, setRoute] = useState('dashboard');
+  const [routeData, setRouteData] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [recommendedVideos, setRecommendedVideos] = useState([]);
+  
+  const getRecommendedVideos = useCallback((videos, userId) => { /* ...código omitido... */ const likedVideos = videos.filter(v => v.likedBy?.includes(userId)); if (likedVideos.length === 0) return [...videos].sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0)); const hashtagScores = {}; likedVideos.forEach(video => { const tags = video.hashtags?.split(' ').filter(tag => tag.startsWith('#')) || []; tags.forEach(tag => { hashtagScores[tag] = (hashtagScores[tag] || 0) + 1; }); }); return [...videos].sort((a, b) => { const scoreA = a.hashtags?.split(' ').reduce((acc, tag) => acc + (hashtagScores[tag] || 0), 0) || 0; const scoreB = b.hashtags?.split(' ').reduce((acc, tag) => acc + (hashtagScores[tag] || 0), 0) || 0; if (scoreA === scoreB) return (b.likeCount || 0) - (a.likeCount || 0); return scoreB - scoreA; }); }, []);
+
+  const getOrCreateUserProfile = useCallback(async (user) => {
+    const userDocRef = doc(db, `artifacts/${appId}/public/data/users`, user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) return { uid: userDoc.id, ...userDoc.data() };
+    
+    const randomNum = Math.floor(Math.random() * 10000);
+    const username = user.isAnonymous ? `convidado${randomNum}` : (user.email?.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') + randomNum || `user${randomNum}`);
+    const newUserProfile = {
+        username: `@${username}`,
+        displayName: user.isAnonymous ? `Convidado ${randomNum}` : (user.displayName || username),
+        email: user.email || '', bio: user.isAnonymous ? 'Estou apenas de passagem!' : 'Olá! Sou novo no Vibbeo.',
+        photoURL: user.photoURL || '', followers: [], following: [], createdAt: new Date(), isAnonymous: user.isAnonymous
+    };
+    await setDoc(userDocRef, newUserProfile);
+    return { uid: user.uid, ...newUserProfile };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      let finalUser = user;
+      if (!user) {
+        try {
+          const userCredential = await signInAnonymously(auth);
+          finalUser = userCredential.user;
+        } catch (error) {
+          console.error("Could not sign in anonymously", error);
+          setAppState('error'); // Um novo estado para mostrar erro
+          return;
+        }
+      }
+      
+      setCurrentUser(finalUser);
+      
+      // Carrega perfil e vídeos em paralelo
+      try {
+        const profilePromise = getOrCreateUserProfile(finalUser);
+        const videosPromise = getDocs(collection(db, `artifacts/${appId}/pu
